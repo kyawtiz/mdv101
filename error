@@ -1,0 +1,10 @@
+%Warning-WIDTH: alu.v:52:55: Operator ADD expects 17 bits on the RHS, but RHS's VARREF 'carry_in' generates 1 bits.
+                           : ... In instance ALU.arith_unit
+   52 |         4'b0010: {carry_out, arith_out} = in_a + in_b + carry_in;  
+      |                                                       ^
+                ... Use "/* verilator lint_off WIDTH */" and lint_on around source to disable this message.
+%Warning-WIDTH: alu.v:53:55: Operator SUB expects 17 bits on the RHS, but RHS's VARREF 'carry_in' generates 1 bits.
+                           : ... In instance ALU.arith_unit
+   53 |         4'b0011: {carry_out, arith_out} = in_a - in_b - carry_in;  
+      |                                                       ^
+%Error: Exiting due to 2 warning(s)
