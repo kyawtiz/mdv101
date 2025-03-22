@@ -1,104 +1,3 @@
-module ArithmeticUnit (
-    input wire carry_in,
-    input wire [15:0] in_a,
-    input wire [15:0] in_b,
-    input wire [3:0] select,
-    output reg carry_out,
-    output reg compare,
-    output reg [15:0] arith_out
-);
-
-    always @(*) begin
-        case (select)
-            4'b0000: begin // Addition
-                arith_out = in_a + in_b + carry_in;
-                carry_out = (in_a + in_b + carry_in) > 16'hFFFF;
-                compare = (in_a + in_b + carry_in) == 0;
-            end
-            4'b0001: begin // Subtraction
-                arith_out = in_a - in_b - carry_in;
-                carry_out = (in_a - in_b - carry_in) < 0;
-                compare = (in_a - in_b - carry_in) == 0;
-            end
-            4'b0010: begin // AND
-                arith_out = in_a & in_b;
-                carry_out = 1'b0;
-                compare = (in_a & in_b) == 0;
-            end
-            4'b0011: begin // OR
-                arith_out = in_a | in_b;
-                carry_out = 1'b0;
-                compare = (in_a | in_b) == 0;
-            end
-            4'b0100: begin // XOR
-                arith_out = in_a ^ in_b;
-                carry_out = 1'b0;
-                compare = (in_a ^ in_b) == 0;
-            end
-            4'b0101: begin // NOT A
-                arith_out = ~in_a;
-                carry_out = 1'b0;
-                compare = (~in_a) == 0;
-            end
-            4'b0110: begin // NOT B
-                arith_out = ~in_b;
-                carry_out = 1'b0;
-                compare = (~in_b) == 0;
-            end
-            4'b0111: begin // A
-                arith_out = in_a;
-                carry_out = 1'b0;
-                compare = (in_a) == 0;
-            end
-            4'b1000: begin // B
-                arith_out = in_b;
-                carry_out = 1'b0;
-                compare = (in_b) == 0;
-            end
-            4'b1001: begin // Shift Left
-                arith_out = in_a << 1;
-                carry_out = 1'b0;
-                compare = (in_a << 1) == 0;
-            end
-            4'b1010: begin // Shift Right
-                arith_out = in_a >> 1;
-                carry_out = 1'b0;
-                compare = (in_a >> 1) == 0;
-            end
-            default: begin
-                arith_out = 16'h0000;
-                carry_out = 1'b0;
-                compare = 1'b0;
-            end
-        endcase
-    end
-
-endmodule
-
-module LogicUnit (
-    input wire [15:0] in_a,
-    input wire [15:0] in_b,
-    input wire [3:0] select,
-    output reg [15:0] logic_out
-);
-
-    always @(*) begin
-        case (select)
-            4'b0000: logic_out = in_a & in_b;
-            4'b0001: logic_out = in_a | in_b;
-            4'b0010: logic_out = in_a ^ in_b;
-            4'b0011: logic_out = ~in_a;
-            4'b0100: logic_out = ~in_b;
-            4'b0101: logic_out = in_a;
-            4'b0110: logic_out = in_b;
-            4'b0111: logic_out = in_a << 1;
-            4'b1000: logic_out = in_a >> 1;
-            default: logic_out = 16'h0000;
-        endcase
-    end
-
-endmodule
-
 module ALU (
     input wire carry_in,
     input wire [15:0] in_a,
@@ -110,30 +9,75 @@ module ALU (
     output wire [15:0] alu_out
 );
 
-    wire [15:0] arith_out;
-    wire arith_carry_out;
-    wire arith_compare;
-    wire [15:0] logic_out;
+wire [15:0] arith_out, logic_out;
+wire arith_carry, arith_compare;
 
-    ArithmeticUnit arith_unit (
-        .carry_in(carry_in),
-        .in_a(in_a),
-        .in_b(in_b),
-        .select(select),
-        .carry_out(arith_carry_out),
-        .compare(arith_compare),
-        .arith_out(arith_out)
-    );
+ArithmeticUnit arith_unit (
+    .carry_in(carry_in),
+    .in_a(in_a),
+    .in_b(in_b),
+    .select(select),
+    .carry_out(arith_carry),
+    .compare(arith_compare),
+    .arith_out(arith_out)
+);
 
-    LogicUnit logic_unit (
-        .in_a(in_a),
-        .in_b(in_b),
-        .select(select),
-        .logic_out(logic_out)
-    );
+LogicUnit logic_unit (
+    .in_a(in_a),
+    .in_b(in_b),
+    .select(select),
+    .logic_out(logic_out)
+);
 
-    assign carry_out = arith_carry_out;
-    assign compare = arith_compare;
-    assign alu_out = mode ? logic_out : arith_out;
+assign alu_out = mode ? logic_out : arith_out;
+assign carry_out = mode ? 1'b0 : arith_carry;
+assign compare = mode ? 1'b0 : arith_compare;
+
+endmodule
+
+module ArithmeticUnit (
+    input wire carry_in,
+    input wire [15:0] in_a,
+    input wire [15:0] in_b,
+    input wire [3:0] select,
+    output reg carry_out,
+    output reg compare,
+    output reg [15:0] arith_out
+);
+
+always @(*) begin
+    case (select)
+        4'b0000: {carry_out, arith_out} = in_a + in_b;          // Add
+        4'b0001: {carry_out, arith_out} = in_a - in_b;          // Subtract
+        4'b0010: {carry_out, arith_out} = in_a + in_b + carry_in; // Add with carry
+        4'b0011: {carry_out, arith_out} = in_a - in_b - carry_in; // Subtract with borrow
+        default: {carry_out, arith_out} = {1'b0, 16'b0};
+    endcase
+    compare = (arith_out == 16'b0); // Compare flag
+end
+
+endmodule
+
+module LogicUnit (
+    input wire [15:0] in_a,
+    input wire [15:0] in_b,
+    input wire [3:0] select,
+    output reg [15:0] logic_out
+);
+
+always @(*) begin
+    case (select)
+        4'b0000: logic_out = in_a & in_b;    // AND
+        4'b0001: logic_out = in_a | in_b;    // OR
+        4'b0010: logic_out = in_a ^ in_b;    // XOR
+        4'b0011: logic_out = ~in_a;          // NOT A
+        4'b0100: logic_out = ~in_b;          // NOT B
+        4'b0101: logic_out = in_a;           // Pass A
+        4'b0110: logic_out = in_b;           // Pass B
+        4'b0111: logic_out = in_a << 1;      // Shift left
+        4'b1000: logic_out = in_a >> 1;      // Shift right
+        default: logic_out = 16'b0;
+    endcase
+end
 
 endmodule
