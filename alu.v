@@ -47,10 +47,11 @@ module ArithmeticUnit (
 
 always @(*) begin
     case (select)
-        4'b0000: {carry_out, arith_out} = in_a + in_b;          // Add
-        4'b0001: {carry_out, arith_out} = in_a - in_b;          // Subtract
-        4'b0010: {carry_out, arith_out} = in_a + in_b + carry_in; // Add with carry
-        4'b0011: {carry_out, arith_out} = in_a - in_b - carry_in; // Subtract with borrow
+        // Key fix: Extend carry_in to 17 bits using concatenation
+        4'b0000: {carry_out, arith_out} = in_a + in_b + {16'b0, carry_in}; // Add with carry
+        4'b0001: {carry_out, arith_out} = in_a - in_b - {16'b0, carry_in}; // Subtract with borrow
+        4'b0010: {carry_out, arith_out} = in_a + in_b;                    // Normal add
+        4'b0011: {carry_out, arith_out} = in_a - in_b;                    // Normal subtract
         default: {carry_out, arith_out} = {1'b0, 16'b0};
     endcase
     compare = (arith_out == 16'b0); // Compare flag
