@@ -1,99 +1,95 @@
+#include <verilated.h>
+#include <Valu.h>
 #include <iostream>
-#include <random>
-#include <bitset>
-using namespace std;
+#include <cstdlib>
+#include <ctime>
 
-// Model of the Logic Unit
-uint16_t LogicUnitModel(uint16_t a, uint16_t b, uint8_t sel) {
-    switch (sel) {
-        case 0x0: return a & b;
-        case 0x1: return a | b;
-        case 0x2: return a ^ b;
-        case 0x3: return ~a;
-        case 0x4: return ~b;
-        case 0x5: return a;
-        case 0x6: return b;
-        case 0x7: return a << 1;
-        case 0x8: return a >> 1;
-        default: return 0;
-    }
-}
+int main(int argc, char **argv) {
+    Verilated::commandArgs(argc, argv);
+    Valu* alu = new Valu;
 
-// Model of the Arithmetic Unit
-void ArithmeticUnitModel(uint16_t cin, uint16_t a, uint16_t b, uint8_t sel, 
-                         uint16_t &out, uint16_t &cout, uint16_t &cmp) {
-    uint32_t res;
-    switch (sel) {
-        case 0x0: res = a + b; break;
-        case 0x1: res = a - b; break;
-        case 0x2: res = a + b + cin; break;
-        case 0x3: res = a - b - cin; break;
-        default: res = 0;
-    }
-    out = res & 0xFFFF;
-    cout = (res >> 16) & 1;
-    cmp = (out == 0) ? 1 : 0;
-}
+    for (int sel = 0; sel < 16; sel++) {
+        for (int test = 0; test < 1000; test++) {
+            uint16_t in_a = std::rand() & 0xFFFF;
+            uint16_t in_b = std::rand() & 0xFFFF;
+            int mode = std::rand() % 2;
+            int carry_in = std::rand() % 2;
 
-// ALU Model
-void ALUModel(uint16_t cin, uint16_t a, uint16_t b, uint8_t sel, bool mode,
-              uint16_t &out, uint16_t &cout, uint16_t &cmp) {
-    if (mode) { // Logic mode
-        out = LogicUnitModel(a, b, sel);
-        cout = 0;
-        cmp = 0;
-    } else {    // Arithmetic mode
-        ArithmeticUnitModel(cin, a, b, sel, out, cout, cmp);
-    }
-}
+            alu->in_a = in_a;
+            alu->in_b = in_b;
+            alu->select = sel;
+            alu->mode = mode;
+            alu->carry_in = carry_in;
 
-int main() {
-    random_device rd;
-    mt19937 gen(rd());
-    uniform_int_distribution<uint16_t> data_dist(0, 0xFFFF);
-    uniform_int_distribution<uint8_t> carry_dist(0, 1);
+            alu->eval();
 
-    // Test each arithmetic operation (4 operations)
-    for (int op = 0; op < 4; op++) {
-        for (int i = 0; i < 1000; i++) {
-            uint16_t a = data_dist(gen);
-            uint16_t b = data_dist(gen);
-            uint16_t cin = carry_dist(gen);
-            uint16_t out, cout, cmp;
+            uint16_t expected_result;
+            bool expected_cout = false;
+            bool expected_cmp = false;
 
-            ALUModel(cin, a, b, op, 0, out, cout, cmp);
+            if (mode == 1) {
+                switch (sel) {
+                    case 0x0: expected_result = ~in_a; break;
+                    case 0x1: expected_result = ~(in_a | in_b); break;
+                    case 0x2: expected_result = ~in_a & in_b; break;
+                    case 0x3: expected_result = 0x0000; break;
+                    case 0x4: expected_result = ~(in_a & in_b); break;
+                    case 0x5: expected_result = ~in_b; break;
+                    case 0x6: expected_result = in_a ^ in_b; break;
+                    case 0x7: expected_result = in_a & ~in_b; break;
+                    case 0x8: expected_result = ~in_a | in_b; break;
+                    case 0x9: expected_result = ~(in_a ^ in_b); break;
+                    case 0xA: expected_result = in_b; break;
+                    case 0xB: expected_result = in_a & in_b; break;
+                    case 0xC: expected_result = 0x0001; break;
+                    case 0xD: expected_result = in_a | ~in_b; break;
+                    case 0xE: expected_result = in_a | in_b; break;
+                    case 0xF: expected_result = in_a; break;
+                }
+            }
 
-            // Verify against model
-            uint16_t exp_out, exp_cout, exp_cmp;
-            ArithmeticUnitModel(cin, a, b, op, exp_out, exp_cout, exp_cmp);
+            else {
+                int32_t result = 0;
+                switch (sel) {
+                    case 0x0: result = in_a; break;
+                    case 0x1: result = in_a | in_b; break;
+                    case 0x2: result = in_a | ~in_b; break;
+                    case 0x3: result = 0xFFFF; break;
+                    case 0x4: result = in_a | (in_a & ~in_b); break;
+                    case 0x5: result = (in_a | in_b) + (in_a & ~in_b) + carry_in; break;
+                    case 0x6: result = in_a - in_b - 1; break;
+                    case 0x7: result = (in_a & ~in_b) - 1; break;
+                    case 0x8: result = in_a + (in_a & in_b) + carry_in; break;
+                    case 0x9: result = in_a + in_b + carry_in; break;
+                    case 0xA: result = (in_a | ~in_b) + (in_a & in_b) + carry_in; break;
+                    case 0xB: result = (in_a & in_b) - 1; break;
+                    case 0xC: result = in_a + in_a + carry_in; break;
+                    case 0xD: result = (in_a | in_b) + in_a + carry_in; break;
+                    case 0xE: result = (in_a | ~in_b) + in_a + carry_in; break;
+                    case 0xF: result = in_a - 1; break;
+                }
+                expected_result = result & 0xFFFF;
+                expected_cout = (result >> 16);
+                expected_cmp = in_a == in_b;
+            }
 
-            if (out != exp_out || cout != exp_cout || cmp != exp_cmp) {
-                cerr << "Arithmetic Test Failed: Op=" << op 
-                     << " A=" << a << " B=" << b << " Cin=" << cin << endl;
-                return 1;
+            
+            if (alu->alu_out != expected_result || alu->carry_out != expected_cout || alu->compare != expected_cmp) {
+                std::cout << "Mismatch at Sel=" << sel
+                          << " in_a=" << in_a << " in_b=" << in_b
+                          << " mode=" << mode << " carry_in=" << carry_in
+                          << " Expected=" << expected_result
+                          << " Got=" << alu->alu_out
+                          << " Expected COut=" << expected_cout
+                          << " Got COut=" << (int)alu->carry_out
+                          << " Expected Cmp=" << expected_cmp
+                          << " Got Cmp=" << (int)alu->compare
+                          << std::endl;
             }
         }
     }
 
-    // Test each logic operation (9 operations)
-    for (int op = 0; op <= 8; op++) {
-        for (int i = 0; i < 1000; i++) {
-            uint16_t a = data_dist(gen);
-            uint16_t b = data_dist(gen);
-            uint16_t out, cout, cmp;
-
-            ALUModel(0, a, b, op, 1, out, cout, cmp);
-
-            // Verify against model
-            uint16_t exp_out = LogicUnitModel(a, b, op);
-            if (out != exp_out || cout != 0 || cmp != 0) {
-                cerr << "Logic Test Failed: Op=" << op 
-                     << " A=" << a << " B=" << b << endl;
-                return 1;
-            }
-        }
-    }
-
-    cout << "All tests passed successfully!" << endl;
+    std::cout << "Testbench completed." << std::endl;
+    delete alu;
     return 0;
 }
