@@ -1,4 +1,4 @@
-module ALU (
+module alu (
     input wire carry_in,
     input wire [15:0] in_a,
     input wire [15:0] in_b,
