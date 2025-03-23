@@ -1,4 +1,4 @@
-module key_lock (
+module key_lock_system (
     input clk,
     input reset,
     input [3:0] key_in,  // 4-bit key input
